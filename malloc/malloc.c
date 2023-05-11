@@ -33,6 +33,7 @@ int amount_of_mallocs = 0;  // cantidad de mallocs.
 int amount_of_frees = 0;    // cantidad de frees.
 int requested_memory = 0;   // cantidad de memoria pedida.
 
+// Devuelve la lista de bloques correspondiente al tamaño.
 struct region **
 get_blocks_by_size(size_t size)
 {
@@ -46,6 +47,7 @@ get_blocks_by_size(size_t size)
 
 	return NULL;
 }
+// Devuelve el tamaño del bloque correspondiente al tamaño.
 size_t
 get_block_size(size_t size)
 {
@@ -78,8 +80,7 @@ find_free_region(size_t size)
 		while (current_region != NULL) {
 			if (current_region->free) {
 				// Spliting.
-				if (current_region->size + sizeof(struct region) >=
-				    size) {
+				if (current_region->size >= size) {
 					return create_region(current_region, size);
 				} else {  // Coalescing.
 
@@ -147,17 +148,21 @@ find_free_region(size_t size)
 			}
 			current_region = current_region->next;
 		}
+		if (best_fit_region != NULL) {
+			return create_region(best_fit_region, size);
+		}
 
 		i++;
 	}
 
 	return best_fit_region;
+
 #endif
 
 	return current_region;
 }
 
-// Creamos una funcion para unir dos regiones de memoria contiguas a derecha.
+// Une la region que recibe como parametro con la region siguiente.
 struct region *
 coalesce_right(struct region *region)
 {
@@ -171,7 +176,7 @@ coalesce_right(struct region *region)
 	return region;
 }
 
-// Crea un bloque de memoria mas el header.
+// Crea un bloque: header + memoria.
 struct region *
 create_block(size_t size)
 {
@@ -183,6 +188,7 @@ create_block(size_t size)
 	                   0);
 
 	if (block == MAP_FAILED) {
+		errno = ENOMEM;
 		return NULL;
 	}
 
@@ -194,7 +200,7 @@ create_block(size_t size)
 
 	return new_region;
 }
-// Spliting. Crea una región de memoria de tamaño header+size.
+// Spliting. Crea una región de memoria de tamaño: header + size.
 struct region *
 create_region(struct region *region, size_t size)
 {
@@ -228,7 +234,7 @@ malloc(size_t size)
 		return NULL;
 	}
 
-	if (requested_memory + size > LIMIT_MEMORY) {
+	if (size > LARGE_BLOCKS) {
 		errno = ENOMEM;
 		return NULL;
 	}
@@ -278,18 +284,17 @@ free(void *ptr)
 		return;
 	}
 
-	// updates statistics
-	amount_of_frees++;
-
 	struct region *curr = PTR2REGION(ptr);
 
-	// Verificamos si las regiones contigua a la derecha o izquierda estan libres.
-	// Si es asi, las unimos las regiones contiguas y ademas verifca si el bloque
+	// Verificamos si las regiones contigua a derecha-izquierda estan libres.
+	// Si es asi, une las regiones contiguas. Verifica si el bloque
 	// de memoria esta vacio, si es asi, se libera el bloque de memoria con munmap.
 	if (curr->next != NULL && curr->next->free) {
+		curr->free = true;
 		curr = coalesce_right(curr);
 	}
 	if (curr->prev != NULL && curr->prev->free) {
+		curr->free = true;
 		curr = coalesce_right(curr->prev);
 	}
 	if (curr->next == NULL && curr->prev == NULL) {
@@ -307,12 +312,13 @@ free(void *ptr)
 		*block_list = NULL;
 
 		munmap(curr, curr->size + sizeof(struct region));
+
+		amount_of_frees++;
+
 	} else {
 		curr->free = true;
+		amount_of_frees++;
 	}
-
-	amount_of_frees++;
-	requested_memory -= curr->size;
 }
 
 void *
@@ -328,10 +334,10 @@ calloc(size_t nmemb, size_t size)
 
 	void *ptr = malloc(nmemb * size);
 	if (ptr != NULL)
-		memset(ptr, 0, nmemb * size);
+		memset(ptr, 0, nmemb * size - 64);
 
 	requested_memory += nmemb * size;
-	
+
 	return ptr;
 }
 
@@ -361,27 +367,36 @@ realloc(void *ptr, size_t size)
 
 	struct region *region = PTR2REGION(ptr);
 
-	// Verifico si la memoria contigua a la derecha esta libre y la memoria es mayor a size.
-	if (region->next != NULL && region->next->free &&
-	    region->size + region->next->size + sizeof(struct region) >= size) {
-		region = create_region(coalesce_right(region), size);
+	if (region->size >= size) {  // Achicar la región.
+		region = create_region(region, size);
 		requested_memory += size;
+
 		return REGION2PTR(region);
-	} else {
-		// Si no es asi, se crea un nuevo bloque de memoria y se copia el contenido del bloque anterior.
-		void *new_ptr = malloc(size);
-		if (new_ptr == NULL) {
-			return NULL;
+	} else {  // Agrandar la región.
+		// Verifico si la memoria contigua a la derecha esta libre y si la memoria es mayor a size.
+		if (region->next != NULL && region->next->free &&
+		    region->size + region->next->size + sizeof(struct region) >=
+		            size) {
+			region = create_region(coalesce_right(region), size);
+			requested_memory += size;
+
+			return REGION2PTR(region);
+		} else {
+			// Si no es asi, se crea un nuevo bloque de memoria y se copia el contenido del bloque anterior.
+			void *new_ptr = malloc(size);
+			if (new_ptr == NULL) {
+				errno = ENOMEM;
+				return NULL;
+			}
+
+			memcpy(new_ptr, ptr, region->size);
+			free(ptr);
+
+			requested_memory += size;
+
+			return new_ptr;
 		}
-
-		memcpy(new_ptr, ptr, region->size);
-		free(ptr);
-
-		requested_memory += size;
-
-		return new_ptr;
 	}
-
 
 	return NULL;
 }
