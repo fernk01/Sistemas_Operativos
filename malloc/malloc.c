@@ -47,6 +47,7 @@ get_blocks_by_size(size_t size)
 
 	return NULL;
 }
+
 // Devuelve el tamaño del bloque correspondiente al tamaño.
 size_t
 get_block_size(size_t size)
@@ -61,6 +62,7 @@ get_block_size(size_t size)
 
 	return 0;
 }
+
 // finds the next free region
 // that holds the requested size
 static struct region *
@@ -80,7 +82,7 @@ find_free_region(size_t size)
 		while (current_region != NULL) {
 			if (current_region->free) {
 				// Spliting.
-				if (current_region->size >= size) {
+				if (current_region->size > size) {
 					return create_region(current_region, size);
 				} else {  // Coalescing.
 
@@ -200,6 +202,7 @@ create_block(size_t size)
 
 	return new_region;
 }
+
 // Spliting. Crea una región de memoria de tamaño: header + size.
 struct region *
 create_region(struct region *region, size_t size)
@@ -224,7 +227,6 @@ create_region(struct region *region, size_t size)
 
 	return region;
 }
-
 
 /// Public API of malloc library ///
 void *
@@ -268,7 +270,7 @@ malloc(size_t size)
 		new_block = create_block(size_block);
 		free_region = create_region(new_block, size);
 
-		*current_block = new_block;
+		*current_block = free_region;
 	}
 
 	amount_of_mallocs++;
@@ -286,6 +288,27 @@ free(void *ptr)
 
 	struct region *curr = PTR2REGION(ptr);
 
+	// Verifico que el puntero sea valido, es decir, que sea un puntero a una region.
+	struct region **block_list = get_blocks_by_size(curr->size);
+	struct region *current_region;
+	size_t i = 0;
+
+	for (i = 0; i < MAX_BLOCKS; i++) {
+		current_region = block_list[i];
+		while (current_region != NULL && current_region != curr) {
+			current_region = current_region->next;
+		}
+
+		if (current_region == curr) {
+			break;
+		}
+	}
+
+	// No se encontro el puntero en la lista de bloques.
+	if (current_region == NULL) {
+		return;
+	}
+
 	// Verificamos si las regiones contigua a derecha-izquierda estan libres.
 	// Si es asi, une las regiones contiguas. Verifica si el bloque
 	// de memoria esta vacio, si es asi, se libera el bloque de memoria con munmap.
@@ -298,26 +321,16 @@ free(void *ptr)
 		curr = coalesce_right(curr->prev);
 	}
 	if (curr->next == NULL && curr->prev == NULL) {
-		struct region **block_list = get_blocks_by_size(curr->size);
-
-		size_t i = 0;
-
-		while (block_list[i] != curr && i < MAX_BLOCKS) {
-			i++;
-		}
-
-		if (i == MAX_BLOCKS)
+		if (munmap(curr, curr->size + sizeof(struct region)) == -1)
 			return;
 
-		*block_list = NULL;
-
-		munmap(curr, curr->size + sizeof(struct region));
-
+		block_list[i] = NULL;
 		amount_of_frees++;
-
 	} else {
+		if (curr->free == false)
+			amount_of_frees++;
+
 		curr->free = true;
-		amount_of_frees++;
 	}
 }
 
@@ -333,10 +346,10 @@ calloc(size_t nmemb, size_t size)
 	}
 
 	void *ptr = malloc(nmemb * size);
-	if (ptr != NULL)
-		memset(ptr, 0, nmemb * size - 64);
-
-	requested_memory += nmemb * size;
+	if (ptr != NULL) {
+		memset(ptr, 0, nmemb * size);
+		requested_memory += nmemb * size;
+	}
 
 	return ptr;
 }

@@ -7,7 +7,7 @@
 #define MEDIUM_BLOCKS 1048576
 #define LARGE_BLOCKS 33554432
 
-#define MAX_BLOCKS 10
+#define MAX_BLOCKS 30
 #define LIMIT_MEMORY                                                           \
 	(MAX_BLOCKS * (SMALL_BLOCKS + MEDIUM_BLOCKS + LARGE_BLOCKS))
 

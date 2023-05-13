@@ -9,7 +9,9 @@
 void prueba_malloc_casos_borde(void);
 void prueba_free(void);
 void prueba_calloc(void);
-void prueba_bloque_pequenio(void);
+void prueba_realloc(void);
+void prueba_first_fit(void);
+void prueba_best_fit(void);
 
 struct region {
 	bool free;
@@ -23,7 +25,7 @@ successful_malloc_returns_non_null_pointer(void)
 {
 	char *var = malloc(100);
 
-	ASSERT_TRUE("successful malloc returns non null pointer", var != NULL);
+	ASSERT_TRUE("-successful malloc returns non null pointer", var != NULL);
 
 	free(var);
 }
@@ -37,7 +39,7 @@ correct_copied_value(void)
 
 	strcpy(var, test_string);
 
-	ASSERT_TRUE("allocated memory should contain the copied value",
+	ASSERT_TRUE("-allocated memory should contain the copied value",
 	            strcmp(var, test_string) == 0);
 
 	free(var);
@@ -51,7 +53,7 @@ correct_amount_of_mallocs(void)
 	char *var = malloc(100);
 
 	free(var);
-	printfmt("mallocs: ");
+	printfmt("-mallocs: ");
 	get_stats(&stats);
 
 
@@ -69,7 +71,7 @@ correct_amount_of_frees(void)
 
 	get_stats(&stats);
 
-	ASSERT_TRUE("amount of frees should be one", stats.frees == 1);
+	ASSERT_TRUE("-amount of frees should be one", stats.frees == 1);
 }
 
 static void
@@ -83,7 +85,7 @@ correct_amount_of_requested_memory(void)
 
 	get_stats(&stats);
 
-	ASSERT_TRUE("amount of requested memory should be 100",
+	ASSERT_TRUE("-amount of requested memory should be 100",
 	            stats.requested_memory == 100);
 }
 
@@ -91,23 +93,24 @@ void
 prueba_malloc_casos_borde(void)
 {
 	char *var = malloc(0);
-	ASSERT_TRUE("malloc(0) debe retornar NULL", var == NULL);
+	ASSERT_TRUE("-malloc(0) debe retornar NULL", var == NULL);
 	free(var);
 
 	char *var2 = malloc(100);
-	ASSERT_TRUE("malloc(100) debe retornar un puntero no nulo", var2 != NULL);
+	ASSERT_TRUE("-malloc(100) debe retornar un puntero no nulo", var2 != NULL);
 	free(var2);
 
 	char *var3 = malloc(1000000000);
-	ASSERT_TRUE("malloc(1000000000) debe retornar NULL", var3 == NULL);
+	ASSERT_TRUE("-malloc(1000000000) debe retornar NULL", var3 == NULL);
 	free(var3);
 
 	// Pedido de memoria negativo.
 	int num = -1;
 	char *var4 = malloc(num);
-	ASSERT_TRUE("malloc(-1) debe retornar NULL", var4 == NULL);
+	ASSERT_TRUE("-malloc(-1) debe retornar NULL", var4 == NULL);
 	free(var4);
 }
+
 void
 prueba_free(void)
 {
@@ -117,35 +120,122 @@ prueba_free(void)
 
 	get_stats(&stats);
 
-	ASSERT_TRUE("free(NULL) no debe modifica amount_of_frees ",
-	            stats.frees == 0);
-	ASSERT_TRUE("free(NULL) no debe modifica requested_memory ",
-	            stats.requested_memory == 0);
+	ASSERT_TRUE("-free(NULL) no devuelve nada.",
+	            stats.requested_memory == 0 && stats.frees == 0);
+
+	// Prueba: Liberar memoria que no fue pedida.
+	char *var = malloc(200); /*
+	 free(var + 220);
+	 get_stats(&stats);
+	 ASSERT_TRUE("Liberar memoria que no fue pedida no modifica las
+	 estadisticas", (stats.frees == 0) && (stats.requested_memory == 200));
+	 */
+	// Prueba: Liberar correctamente.
+	free(var);
+	get_stats(&stats);
+	ASSERT_TRUE("-free() correctamente debe modificar las estadisticas",
+	            stats.frees == 1);
 }
+
 void
 prueba_calloc(void)
 {
 	// calloc con tamanio 0 devuelve null:
 	char *var = calloc(0, 100);
-	ASSERT_TRUE("calloc(0, 100) debe retornar NULL", var == NULL);
+	ASSERT_TRUE("-calloc(0, 100) debe retornar NULL", var == NULL);
+
+	// calloc con tamanio negativo devuelve null:
+	size_t num = -1;
+	char *var2 = calloc(num, 100);
+	ASSERT_TRUE("-calloc(-1, 100) debe retornar NULL", var2 == NULL);
+
+	// calloc funcionando correctamente.
+	char *var3 = calloc(1500, sizeof(char));
+	ASSERT_TRUE(
+	        "-calloc(1500, sizeof(char)) debe retornar un puntero no nulo",
+	        var3 != NULL);
+	free(var3);
+
+	// Prueba calloc inicizando la memoria en 0.
+	char *var4 = calloc(1500, sizeof(char));
+	char str[1500] = { 0 };
+	ASSERT_TRUE(
+	        "-calloc(1500, sizeof(char)) inicializa la memoria en ceros",
+	        memcmp(var4, str, 1500) == 0);
+	free(var4);
 }
+
 void
-prueba_bloque_pequenio(void)
+prueba_realloc(void)
 {
-	// Primer Bloque de mamoria.
-	// Se crean dos regiones de memoria contiguas de tamaño 1500 y 10600. La
-	// tercera region debe ser de tamaño 4188 y estar libre.
+	struct malloc_stats stats;
+
+	// realloc con tamanio 0 devuelve null:
+	char *var = realloc(NULL, 0);
+	ASSERT_TRUE("-realloc(NULL, 0) debe retornar NULL", var == NULL);
+
+	// Prueba: realloc con puntero a NULL y tamanio 0, la cant de malloc es cero
+	get_stats(&stats);
+	ASSERT_TRUE("-realloc(NULL, 0), la cant de malloc es cero",
+	            stats.mallocs == 0);
+
+	// realloc(ptr, 0) debe comportarse como free(ptr) y liberar el bloque de memoria apuntado por ptr.
+	char *var1 = malloc(100);
+	char *var2 = realloc(var1, 0);
+	get_stats(&stats);
+	ASSERT_TRUE("-realloc(ptr, 0) liberar el bloque de memoria apuntado "
+	            "por ptr y retornar NULL",
+	            var2 == NULL && stats.frees == 1);
+	free(var1);
+	free(var2);
+}
+
+void
+prueba_first_fit(void)
+{
+	// Prueba de asignación de un bloque de memoria en medio de dos bloques
+	// ocupados: Crea dos bloques de memoria contiguos y ocupa parte del espacio
+	// en uno de ellos. Luego, solicita un nuevo bloque de memoria y verifica
+	// que se asigne en el espacio libre existente entre los dos bloques ocupados.
 	int *region = malloc(1500);
-	int *region2 = malloc(10600);
-	struct region *aux = ((struct region *) (region2) -1);
-	int tamano = aux->next->size;
-	printfmt("Se crean dos regiones de memoria contiguas de tamaño 1500 y "
-	         "10600. La tercera region debe ser de tamaño 4188 y estar "
-	         "libre.\n");
-	ASSERT_TRUE("la region contigua a region2 debe ser de tamaño 4188",
-	            tamano == 4188);
-	ASSERT_TRUE("la region contigua a region2 debe estar libre",
-	            aux->next->free == true);
+	int *region2 = malloc(5400);
+	int *region3 = malloc(6800);
+
+	free(region2);
+
+	int *region4 = malloc(2300);
+
+	ASSERT_TRUE("-Prueba: eleccion primer region de memoria.",
+	            region4 == region2);
+
+	free(region);
+	free(region3);
+	free(region4);
+}
+
+void
+prueba_best_fit(void)
+{
+	int *region1 = malloc(5000);
+
+	int *region2 = malloc(3000);
+	int *region3 = malloc(4500);
+
+	free(region2);
+
+	int *region4 = malloc(2600);
+	int *region5 = malloc(7500);
+
+	free(region4);
+
+	int *region6 = malloc(2650);
+
+	ASSERT_TRUE("-Prueba: eleccion de la mejor region de memoria.",
+	            region6 == region4);
+
+	free(region1);
+	free(region3);
+	free(region5);
 }
 
 int
@@ -167,8 +257,18 @@ main(void)
 	printfmt("\nPRUEBAS CALLOC:\n");
 	run_test(prueba_calloc);
 
-	printfmt("\nPRUEBAS BLOQUE PEQUEÑOS:\n");
-	run_test(prueba_bloque_pequenio);
+	printfmt("\nPRUEBAS REALLOC:\n");
+	run_test(prueba_realloc);
+
+#ifdef FIRST_FIT
+	printfmt("\nPRUEBAS FIRST-FIT:\n");
+	run_test(prueba_first_fit);
+#endif
+
+#ifdef BEST_FIT
+	printfmt("\nPRUEBAS BEST-FIT:\n");
+	run_test(prueba_best_fit);
+#endif
 
 	return 0;
 }
