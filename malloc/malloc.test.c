@@ -7,11 +7,17 @@
 #include "malloc.h"
 
 void prueba_malloc_casos_borde(void);
+
 void prueba_free(void);
 void prueba_calloc(void);
 void prueba_realloc(void);
+
 void prueba_first_fit(void);
 void prueba_best_fit(void);
+
+void prueba_bloque_chico(void);
+void prueba_bloque_mediano(void);
+void prueba_bloque_grande(void);
 
 struct region {
 	bool free;
@@ -133,8 +139,9 @@ prueba_free(void)
 	// Prueba: Liberar correctamente.
 	free(var);
 	get_stats(&stats);
-	ASSERT_TRUE("-free() correctamente debe modificar las estadisticas",
-	            stats.frees == 1);
+	ASSERT_TRUE(
+	        "-free(var) correcto funcionamiento, modifica las estadisticas",
+	        stats.frees == 1);
 }
 
 void
@@ -170,24 +177,35 @@ prueba_realloc(void)
 {
 	struct malloc_stats stats;
 
-	// realloc con tamanio 0 devuelve null:
 	char *var = realloc(NULL, 0);
-	ASSERT_TRUE("-realloc(NULL, 0) debe retornar NULL", var == NULL);
+	ASSERT_TRUE("-realloc con puntero a NULL y tamaño 0 devuelve NULL",
+	            var == NULL);
 
-	// Prueba: realloc con puntero a NULL y tamanio 0, la cant de malloc es cero
-	get_stats(&stats);
-	ASSERT_TRUE("-realloc(NULL, 0), la cant de malloc es cero",
-	            stats.mallocs == 0);
+	int num = -1;
+	char *var2 = realloc(NULL, num);
+	ASSERT_TRUE(
+	        "-realloc con puntero a NULL y tamaño negativo devuelve NULL",
+	        var == NULL);
 
-	// realloc(ptr, 0) debe comportarse como free(ptr) y liberar el bloque de memoria apuntado por ptr.
-	char *var1 = malloc(100);
-	char *var2 = realloc(var1, 0);
+	char *var3 = realloc(NULL, 200);
 	get_stats(&stats);
-	ASSERT_TRUE("-realloc(ptr, 0) liberar el bloque de memoria apuntado "
-	            "por ptr y retornar NULL",
-	            var2 == NULL && stats.frees == 1);
-	free(var1);
+	ASSERT_TRUE("-realloc con puntero NULL se comporta como malloc",
+	            stats.mallocs == 1);
+	ASSERT_TRUE("-realloc con puntero NULL aloca memoria correctamente",
+	            stats.requested_memory == 200);
+
+	free(var3);
+
+	int prev_mem_requested = stats.requested_memory;
+	char *var4 = malloc(1000);
+	var4 = realloc(var4, 2000);
+	get_stats(&stats);
+	ASSERT_TRUE("-realloc agranda bloque previamente reservado",
+	            stats.requested_memory == 3000 + prev_mem_requested);
+
+	free(var);
 	free(var2);
+	free(var4);
 }
 
 void
@@ -238,6 +256,109 @@ prueba_best_fit(void)
 	free(region5);
 }
 
+void
+prueba_bloque_chico(void)
+{
+	struct malloc_stats stats;
+	int block_chico = 9500;
+	int *var = malloc(block_chico);
+	get_stats(&stats);
+	ASSERT_TRUE("-Malloc de un tamaño chico creado correctamente",
+	            stats.mallocs == 1);
+	ASSERT_TRUE("-Malloc de un tamaño chico reserva memoria correctamente",
+	            stats.requested_memory == block_chico);
+	free(var);
+
+	int *var1 = malloc(block_chico);
+	int *var2 = malloc(block_chico);
+	int *var3 = malloc(block_chico);
+	int *var4 = malloc(block_chico);
+	int *var5 = malloc(block_chico);
+	int mem_total = 5 * block_chico;
+	get_stats(&stats);
+	ASSERT_TRUE("-Mallocs de un tamaño chico creado correctamente",
+	            stats.mallocs == 6);
+	ASSERT_TRUE("-Malloc de un tamaño chico reserva memoria correctamente",
+	            stats.requested_memory == mem_total + block_chico);
+
+	free(var1);
+	free(var2);
+	free(var3);
+	free(var4);
+	free(var5);
+}
+
+void
+prueba_bloque_mediano(void)
+{
+	struct malloc_stats stats;
+	int block_mediano = 1600500;
+	int *var = malloc(block_mediano);
+	get_stats(&stats);
+	ASSERT_TRUE("-Malloc de un tamaño mediano creado correctamente",
+	            stats.mallocs == 1);
+	ASSERT_TRUE(
+	        "-Malloc de un tamaño mediano reserva memoria correctamente",
+	        stats.requested_memory == block_mediano);
+	free(var);
+
+	int *var1 = malloc(block_mediano);
+	int *var2 = malloc(block_mediano);
+	int *var3 = malloc(block_mediano);
+	int *var4 = malloc(block_mediano);
+	int *var5 = malloc(block_mediano);
+	int mem_total = 5 * block_mediano;
+	get_stats(&stats);
+	ASSERT_TRUE("-Mallocs de un tamaño mediano creado correctamente",
+	            stats.mallocs == 6);
+	ASSERT_TRUE(
+	        "-Malloc de un tamaño mediano reserva memoria correctamente",
+	        stats.requested_memory == mem_total + block_mediano);
+
+	free(var1);
+	free(var2);
+	free(var3);
+	free(var4);
+	free(var5);
+}
+
+void
+prueba_bloque_grande(void)
+{
+	struct malloc_stats stats;
+	int block_grande = 10020400;
+	int *var = malloc(block_grande);
+
+	get_stats(&stats);
+
+	ASSERT_TRUE("-Malloc de un tamaño grande creado correctamente",
+	            stats.mallocs == 1);
+	ASSERT_TRUE("-Malloc de un tamaño grande reserva memoria correctamente",
+	            stats.requested_memory == block_grande);
+	free(var);
+
+	int *var1 = malloc(block_grande);
+	int *var2 = malloc(block_grande);
+	int *var3 = malloc(block_grande);
+	int *var4 = malloc(block_grande);
+	int *var5 = malloc(block_grande);
+
+	int mem_total = 5 * block_grande;
+
+	get_stats(&stats);
+
+	ASSERT_TRUE("-Mallocs de un tamaño grande creado correctamente",
+	            stats.mallocs == 6);
+	ASSERT_TRUE("-Malloc de un tamaño grande reserva memoria correctamente",
+	            stats.requested_memory == mem_total + 10020400);
+
+	free(var1);
+	free(var2);
+	free(var3);
+	free(var4);
+	free(var5);
+}
+
 int
 main(void)
 {
@@ -269,6 +390,15 @@ main(void)
 	printfmt("\nPRUEBAS BEST-FIT:\n");
 	run_test(prueba_best_fit);
 #endif
+
+	printfmt("\nPRUEBAS BLOQUE CHICO:\n");
+	run_test(prueba_bloque_chico);
+
+	printfmt("\nPRUEBAS BLOQUE MEDIANO:\n");
+	run_test(prueba_bloque_mediano);
+
+	printfmt("\nPRUEBAS BLOQUE GRANDE:\n");
+	run_test(prueba_bloque_grande);
 
 	return 0;
 }

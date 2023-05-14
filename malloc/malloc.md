@@ -2,8 +2,16 @@
 
 Lugar para respuestas en prosa y documentación del TP.
 
-# Diseño de la estructura
-Se utiliza un conjunto de arrays de punteros a la estructura `region` (`small_blocks`, `medium_blocks`, `large_blocks`) para organizar los bloques de memoria en diferentes tamaños predefinidos, con un máximo de `MAX_BLOCKS` bloques de memoria por categoría. Esto permite un acceso rápido a los bloques de memoria del tamaño adecuado durante la asignación y la búsqueda de regiones libres. Cada array actúa como un índice que representa una categoría de tamaño específica.
+## Estructura del código.
+El código está organizado en varios archivos:
+
+- `printfmt.h` y `printfmt.c`: Definen la función `printfmt` que se utiliza para imprimir datos formateados en la consola sin usar la función `printf`.
+- `testlib.h` y `testlib.c`: Proporcionan funciones y macros auxiliares para ejecutar las pruebas y mostrar los resultados de manera legible en la consola.
+- `malloc.h` y `malloc.c`: Contienen la implementación de las funciones de asignación y liberación de memoria (malloc, free, calloc, realloc).
+- `malloc.test.c`: Contiene las pruebas específicas para cada función y casos límite.
+
+# Diseño de la estructura.
+Se utiliza un conjunto de arrays de punteros a la estructura `region` (`small_blocks`, `medium_blocks`, `large_blocks`) para organizar los bloques de memoria en diferentes tamaños predefinidos, con un máximo de `MAX_BLOCKS` bloques de memoria por categoría. Esto permite un acceso rápido a los bloques de memoria del tamaño adecuado durante la asignación y la búsqueda de regiones libres. Cada índice del array actúa como un bloque de memoria.
 
 La estructura `region` se utiliza para crear una lista enlazada de regiones de memoria. Cada región está conectada mediante punteros `next` y `prev`, lo que facilita la búsqueda y la fusión de regiones contiguas cuando se liberan. Estos punteros permiten un acceso eficiente a los bloques de memoria adyacentes y simplifican las operaciones de gestión de memoria.
 
@@ -45,3 +53,7 @@ Luego, se obtiene la estructura `region` correspondiente al bloque de memoria ap
 Si el tamaño especificado es mayor que el tamaño actual de la región, se verifican dos escenarios. Primero, se verifica si la memoria contigua a la derecha está libre y si la memoria resultante (sumando los tamaños de ambas regiones más el tamaño del encabezado) es suficiente para acomodar el tamaño solicitado. En ese caso, se fusiona la región actual con la región contigua de la derecha utilizando la función `coalesce_right`, y luego se crea una nueva región con el tamaño especificado utilizando `create_region`.
 
 Si ninguno de los escenarios anteriores se cumple, se asigna un nuevo bloque de memoria utilizando `malloc` y se copia el contenido del bloque original al nuevo bloque utilizando `memcpy`. Luego, el bloque original se libera utilizando `free`.
+
+# Test:
+Las variables `amount_of_mallocs`, `amount_of_frees` y `requested_memory` son utilizadas para rastrear y obtener información sobre el uso de la memoria en el programa.
+A las pruebas unitarias prevista por la cátedra se agregaron las pruebas de casos borde y pruebas de funcionalidad.
