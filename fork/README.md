@@ -13,3 +13,12 @@ $ make
 ```bash
 $ make format
 ```
+
+## Para correr los test ejecutar
+```bash
+./test-fork -c xargs /home/lu/Desktop/fok/sisop_2023a_condori/fork
+
+```
+
+## Buscar en el email por las correciones con el siguiente nombre
+Re: [fiubatps/sisop_2023a_condori] sisop - lab fork - Condori (PR #2)

@@ -84,13 +84,14 @@ main()
 			return 1;
 		}
 
-		wait(NULL);  // espero a que termine el proceso hijo
 
 		// leer un valor desde la segunda tubería
 		if (read(p2[0], &val, sizeof(int)) == -1) {
 			perror("Error al leer");
 			return 1;
 		}
+
+		wait(NULL);  // espero a que termine el proceso hijo
 
 		printf("\nHola, de nuevo PID % d:\n ", getpid());
 		printf(" - recibi valor% d vía fd =% d \n ", val, p2[0]);

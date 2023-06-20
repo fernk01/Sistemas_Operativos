@@ -20,13 +20,12 @@ main(int argc, char *argv[])
 	(void) argc;  // Para evitar el warning de 'not used'.
 	char *args[NARGS + 2] = { argv[1] };
 
-	int read;
 	size_t len;
 	char *lineptr = NULL;
 
 	int i = 1;
 
-	while ((read = getline(&lineptr, &len, stdin)) != -1) {
+	while ((getline(&lineptr, &len, stdin)) != -1) {
 		if (i == NARGS + 1) {
 			args[i] = NULL;  // Para los argumentos del execvp()
 			ejecutar_comando(args);
